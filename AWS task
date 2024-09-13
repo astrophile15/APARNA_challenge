@@ -91,4 +91,62 @@ output "instance_public_ip" {
 
 
 step 8: executed terraform init, plan and execute commands
-step 9: Infrastructure with custom webpage waas provisioned on AWS.
+step 9: Infrastructure with custom webpage is provisioned on AWS.
+
+
+Task 2:  secure application and host to expose only appropriate hosts to public and and any http requests are redirected to https. Use a configuration management tool to automate this process and use a self-signed certificate for the web server.
+
+Solution: 
+add the provisioned webserver Ip to ansible inventory file under group "server"
+create a playbook named nginx_play.yml
+
+add the yaml script:
+
+---
+- hosts: server
+  become: true
+  tasks:
+
+    - name: Create SSL directory
+      file:
+        path: /etc/nginx/ssl
+        state: directory
+        mode: 0755
+
+    - name: Generate self-signed SSL certificate
+      openssl_certificate:
+        path: /etc/nginx/ssl/nginx.crt
+        privatekey_path: /etc/nginx/ssl/nginx.key
+        days_valid: 365
+        state: present
+
+    - name: Nginx configuration for HTTPS redirect
+      copy:
+        dest: /etc/nginx/sites-available/default
+        content: |
+          server {
+              listen 80;
+              server public_ip of server;
+              return 301 https://$host$request_uri;
+          }
+          server {
+              listen 443 ssl;
+              server public_ip of server;
+
+              ssl_certificate /etc/nginx/ssl/nginx.crt;
+              ssl_certificate_key /etc/nginx/ssl/nginx.key;
+
+              location / {
+                  try_files $uri $uri/ =404;
+              }
+          }
+
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+
+
+This script creates and configures our application to use a self-signed certificate and redirect HTTP traffic to HTTPS.
+
+Run the playbook using "ansible-playbook -i hosts nginx_play.yml" to automate the entire process.
